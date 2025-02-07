@@ -21,7 +21,7 @@
 #define THIS_FILE       "pjsua_app.c"
 
 //#define STEREO_DEMO
-//#define TRANSPORT_ADAPTER_SAMPLE
+#define TRANSPORT_ADAPTER_SAMPLE
 //#define HAVE_MULTIPART_TEST
 
 /* Ringtones                US         UK  */
@@ -1072,7 +1072,7 @@ static pjmedia_transport* on_create_media_transport(pjsua_call_id call_id,
     pj_status_t status;
 
     /* Create the adapter */
-    status = pjmedia_tp_adapter_create(pjsua_get_pjmedia_endpt(),
+    status = pjmedia_tp_stegno_create(pjsua_get_pjmedia_endpt(),
                                        NULL, base_tp,
                                        (flags & PJSUA_MED_TP_CLOSE_MEMBER),
                                        &adapter);
@@ -1081,7 +1081,7 @@ static pjmedia_transport* on_create_media_transport(pjsua_call_id call_id,
         return NULL;
     }
 
-    PJ_LOG(3,(THIS_FILE, "Media transport is created for call %d media %d",
+    PJ_LOG(3,(THIS_FILE, "Media transport is created for call %d media %d change log!!!!",
               call_id, media_idx));
 
     return adapter;

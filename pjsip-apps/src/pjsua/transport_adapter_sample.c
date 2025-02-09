@@ -16,13 +16,19 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
  */
-#include <pjmedia/transport_adapter_sample.h>
+#include "transport_adapter_sample.h"
 #include <pjmedia/endpoint.h>
 #include <pj/assert.h>
 #include <pj/pool.h>
 #include <pj/log.h>
+#include <pjmedia/rtp.h>
 
 #define THIS_FILE       "transport_adapter_sample.c"
+#define T(op)       do { \
+                        pj_status_t status = op; \
+                        if (status != PJ_SUCCESS) \
+                            exit(0); \
+                    } while (0)
 
 
 /* Transport functions prototypes */
@@ -108,6 +114,14 @@ struct tp_stegno
     pjmedia_transport   *slave_tp;
 };
 
+static struct app
+{
+    pjmedia_rtp_session  rtp_sess;
+    pj_bool_t            rtp_sess_init;
+    int counter;
+} app;
+
+
 
 static void adapter_on_destroy(void *arg);
 
@@ -141,6 +155,9 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     /* Save the transport as the slave transport */
     adapter->slave_tp = transport;
     adapter->del_base = del_base;
+
+    app.counter = 0;
+
 
     /* Setup group lock handler for destroy and callback synchronization */
     if (transport && transport->grp_lock) {
@@ -283,9 +300,45 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     struct tp_stegno *adapter = (struct tp_stegno*)tp;
 
     /* You may do some processing to the RTP packet here if you want. */
+    pj_status_t status;
+    unsigned *payload_size;
+    const pjmedia_rtp_hdr *rtp_header;
+    unsigned char *payload;
+    char buffer[PJMEDIA_MAX_MTU];
+    int offset;
+    int payloadlen;
+
+   
+    pj_memcpy(buffer, pkt, size);
+
+    rtp_header = (pjmedia_rtp_hdr*)buffer;
+    /* Payload is located right after header plus CSRC */
+    offset = sizeof(pjmedia_rtp_hdr) + (rtp_header->cc * sizeof(pj_uint32_t));
+    payload = (unsigned char *)(buffer + offset);
+    payloadlen = size - offset;
+
+    /* Remove payload padding if any */
+    if (rtp_header->p && payloadlen > 0) {
+        pj_uint8_t pad_len;
+
+        pad_len = ((pj_uint8_t*)(*payload))[payloadlen - 1];
+        if (pad_len <= payloadlen)
+            payloadlen -= pad_len;
+    }
+
+    if (rtp_header->v == 2) {
+        PJ_LOG(3, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
+            rtp_header->v, rtp_header->pt, (unsigned long)pj_ntohl(rtp_header->seq),
+            (unsigned long) pj_ntohl(rtp_header->ts),
+            (unsigned long) pj_ntohl(rtp_header->cc),
+            payloadlen, payload[0], payload[payloadlen-1]));
+    }
+    PJ_LOG(4, (THIS_FILE, "inside stego_send_rtp, counter %d", app.counter++));
     
+    payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter & 0xf);
+    pj_memcpy(pkt, buffer, size);
+
     
-    PJ_LOG(4, (THIS_FILE, "inside stego_send_rtp"));
 
     /* Send the packet using the slave transport */
     return pjmedia_transport_send_rtp(adapter->slave_tp, pkt, size);

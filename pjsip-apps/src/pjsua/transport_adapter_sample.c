@@ -288,6 +288,35 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
     }
 }
 
+void see_rtp(const void *pkt, pj_size_t size, unsigned char *payload)
+{
+    const pjmedia_rtp_hdr *rtp_header;
+    int offset;
+    int payloadlen;
+    rtp_header = (pjmedia_rtp_hdr*)pkt;
+    /* Payload is located right after header plus CSRC */
+    offset = sizeof(pjmedia_rtp_hdr) + (rtp_header->cc * sizeof(pj_uint32_t));
+    payload = (unsigned char *)(pkt + offset);
+    payloadlen = size - offset;
+
+    /* Remove payload padding if any */
+    if (rtp_header->p && payloadlen > 0) {
+        pj_uint8_t pad_len;
+
+        pad_len = ((pj_uint8_t*)(*payload))[payloadlen - 1];
+        if (pad_len <= payloadlen)
+            payloadlen -= pad_len;
+    }
+
+    
+    if (rtp_header->v == 2) {
+        PJ_LOG(3, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
+            rtp_header->v, rtp_header->pt, (unsigned long)pj_ntohl(rtp_header->seq),
+            (unsigned long) pj_ntohl(rtp_header->ts),
+            (unsigned long) pj_ntohl(rtp_header->cc),
+            payloadlen, payload[0], payload[payloadlen-1]));
+    }
+}
 
 /*
  * send_rtp() is called to send RTP packet. The "pkt" and "size" argument 
@@ -300,43 +329,21 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     struct tp_stegno *adapter = (struct tp_stegno*)tp;
 
     /* You may do some processing to the RTP packet here if you want. */
-    pj_status_t status;
-    unsigned *payload_size;
-    const pjmedia_rtp_hdr *rtp_header;
+    
+    
+    
     unsigned char *payload;
-    char buffer[PJMEDIA_MAX_MTU];
-    int offset;
-    int payloadlen;
+    
+    
 
    
-    pj_memcpy(buffer, pkt, size);
+    
 
-    rtp_header = (pjmedia_rtp_hdr*)buffer;
-    /* Payload is located right after header plus CSRC */
-    offset = sizeof(pjmedia_rtp_hdr) + (rtp_header->cc * sizeof(pj_uint32_t));
-    payload = (unsigned char *)(buffer + offset);
-    payloadlen = size - offset;
-
-    /* Remove payload padding if any */
-    if (rtp_header->p && payloadlen > 0) {
-        pj_uint8_t pad_len;
-
-        pad_len = ((pj_uint8_t*)(*payload))[payloadlen - 1];
-        if (pad_len <= payloadlen)
-            payloadlen -= pad_len;
-    }
-
-    if (rtp_header->v == 2) {
-        PJ_LOG(3, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
-            rtp_header->v, rtp_header->pt, (unsigned long)pj_ntohl(rtp_header->seq),
-            (unsigned long) pj_ntohl(rtp_header->ts),
-            (unsigned long) pj_ntohl(rtp_header->cc),
-            payloadlen, payload[0], payload[payloadlen-1]));
-    }
+    
+    see_rtp(pkt, size, payload);
     PJ_LOG(4, (THIS_FILE, "inside stego_send_rtp, counter %d", app.counter++));
     
-    payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter & 0xf);
-    pj_memcpy(pkt, buffer, size);
+    
 
     
 

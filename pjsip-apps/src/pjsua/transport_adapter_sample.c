@@ -22,6 +22,12 @@
 #include <pj/pool.h>
 #include <pj/log.h>
 #include <pjmedia/rtp.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define THIS_FILE       "transport_adapter_sample.c"
 #define T(op)       do { \
@@ -119,6 +125,11 @@ static struct app
     pjmedia_rtp_session  rtp_sess;
     pj_bool_t            rtp_sess_init;
     int counter;
+	int shmid;
+    key_t key;
+    char *shared_memory;
+	int semid;
+	key_t keysem;
 } app;
 
 
@@ -168,6 +179,30 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
         pj_grp_lock_add_handler(grp_lock, pool, adapter, &adapter_on_destroy);
     }
 
+	/* Setup shared memory */
+	app.key = 123456;
+    if ((app.shmid = shmget(app.key, 160, IPC_CREAT | 0666)) < 0)
+    {
+        printf("Error getting shared memory id");
+        exit(1);
+    }
+
+    // Attached shared memory
+    if ((app.shared_memory = shmat(app.shmid, NULL, 0)) == (char *) -1)
+    {
+        printf("Error attaching shared memory id");
+        exit(1);
+    }
+    PJ_LOG(3,(THIS_FILE, "shared memory attatched"));
+
+	// Semaphore
+	app.keysem = 789;
+	if ((app.semid = semget(app.keysem, 1, 0666 | IPC_CREAT)) < 0)
+	{
+        printf("Error getting semaphore id");
+        exit(1);
+	}
+
     /* Done */
     *p_tp = &adapter->base;
     return PJ_SUCCESS;
@@ -196,9 +231,12 @@ static pj_status_t transport_get_info(pjmedia_transport *tp,
 static void transport_rtp_cb2(pjmedia_tp_cb_param *param)
 {
     struct tp_stegno *adapter = (struct tp_stegno*)param->user_data;
+    unsigned char *payload;
 
     pj_assert(adapter->stream_rtp_cb != NULL ||
               adapter->stream_rtp_cb2 != NULL);
+
+    // see_rtp(param->pkt, param->size, payload);
 
     /* Call stream's callback */
     if (adapter->stream_rtp_cb2) {
@@ -285,6 +323,11 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
         adapter->stream_rtp_cb2 = NULL;
         adapter->stream_rtcp_cb = NULL;
         adapter->stream_ref = NULL;
+		/* detach and remove shared memory */
+		shmdt(app.shmid);
+	    shmctl(app.shmid, IPC_RMID, NULL);
+		// semaphore
+		semctl(app.semid, 0, IPC_RMID);
     }
 }
 
@@ -316,6 +359,9 @@ void see_rtp(const void *pkt, pj_size_t size, unsigned char *payload)
             (unsigned long) pj_ntohl(rtp_header->cc),
             payloadlen, payload[0], payload[payloadlen-1]));
     }
+    //payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter++ % 256);
+	memcpy(app.shared_memory, pkt, size);
+	//sem_post(app.semid);
 }
 
 /*

@@ -28,6 +28,7 @@
 #include <semaphore.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/msg.h>
 
 #define THIS_FILE       "transport_adapter_sample.c"
 #define T(op)       do { \
@@ -35,7 +36,11 @@
                         if (status != PJ_SUCCESS) \
                             exit(0); \
                     } while (0)
-
+#define SHM_NAME 123456
+#define SEM_NAME "/pjsem"
+#define MSG_NAME 81
+#define RMSG_NAME 82
+#define BUFSIZE 1024
 
 /* Transport functions prototypes */
 static pj_status_t transport_get_info (pjmedia_transport *tp,
@@ -128,10 +133,17 @@ static struct app
 	int shmid;
     key_t key;
     char *shared_memory;
-	int semid;
+	sem_t *sem;
 	key_t keysem;
+	int msgid;
+	int rmsgid;
 } app;
 
+/* message queue */
+typedef struct msgbuf {
+        unsigned long mtype;
+        char mtext[BUFSIZE];      /* message text */
+}MSGBUF;
 
 
 static void adapter_on_destroy(void *arg);
@@ -180,7 +192,7 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     }
 
 	/* Setup shared memory */
-	app.key = 123456;
+	app.key = SHM_NAME;
     if ((app.shmid = shmget(app.key, 160, IPC_CREAT | 0666)) < 0)
     {
         printf("Error getting shared memory id");
@@ -196,12 +208,15 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     PJ_LOG(3,(THIS_FILE, "shared memory attatched"));
 
 	// Semaphore
-	app.keysem = 789;
-	if ((app.semid = semget(app.keysem, 1, 0666 | IPC_CREAT)) < 0)
+	if ((app.sem = sem_open(SEM_NAME, O_CREAT | O_EXCL, 0666, 0)) < 0)
 	{
-        printf("Error getting semaphore id");
-        exit(1);
+		PJ_LOG(3, (THIS_FILE, "semaphore init failed"));
 	}
+	
+	app.msgid = msgget(MSG_NAME, IPC_CREAT | 0660);
+	app.rmsgid = msgget(RMSG_NAME, IPC_CREAT | 0660);
+
+
 
     /* Done */
     *p_tp = &adapter->base;
@@ -327,11 +342,15 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
 		shmdt(app.shmid);
 	    shmctl(app.shmid, IPC_RMID, NULL);
 		// semaphore
-		semctl(app.semid, 0, IPC_RMID);
+        sem_close(app.sem);
+        sem_unlink(SEM_NAME);
+		// message queue
+		msgctl(app.msgid, IPC_RMID, 0);
+		msgctl(app.rmsgid, IPC_RMID, 0);
     }
 }
 
-void see_rtp(const void *pkt, pj_size_t size, unsigned char *payload)
+int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 {
     const pjmedia_rtp_hdr *rtp_header;
     int offset;
@@ -352,16 +371,39 @@ void see_rtp(const void *pkt, pj_size_t size, unsigned char *payload)
     }
 
     
-    if (rtp_header->v == 2) {
-        PJ_LOG(3, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
+    /*if (rtp_header->v == 2) {
+       PJ_LOG(3, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
             rtp_header->v, rtp_header->pt, (unsigned long)pj_ntohl(rtp_header->seq),
             (unsigned long) pj_ntohl(rtp_header->ts),
             (unsigned long) pj_ntohl(rtp_header->cc),
             payloadlen, payload[0], payload[payloadlen-1]));
-    }
+    }*/
     //payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter++ % 256);
-	memcpy(app.shared_memory, pkt, size);
-	//sem_post(app.semid);
+	//memcpy(app.shared_memory, pkt, size);
+	//sem_post(app.sem);
+	//int *semval;
+	//sem_getvalue(app.sem, semval);
+	//printf("count %d semaphore %d", app.counter, *semval);
+	//
+    MSGBUF msgbuf;
+    MSGBUF rmsgbuf;
+	msgbuf.mtype = 1;
+	memcpy(msgbuf.mtext, payload, payloadlen);
+	msgsnd(app.msgid, &msgbuf, payloadlen, 0);
+	msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+
+	return payloadlen;
+}
+
+void ipc_mq(const void *payload, int payloadlen)
+{
+    MSGBUF msgbuf;
+    MSGBUF rmsgbuf;
+	msgbuf.mtype = 1;
+	memcpy(msgbuf.mtext, payload, payloadlen);
+	msgsnd(app.msgid, &msgbuf, payloadlen, 0);
+	msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+
 }
 
 /*
@@ -378,16 +420,12 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     
     
     
-    unsigned char *payload;
+    void *payload;
+	int payloadlen;
     
-    
-
-   
-    
-
-    
-    see_rtp(pkt, size, payload);
-    PJ_LOG(4, (THIS_FILE, "inside stego_send_rtp, counter %d", app.counter++));
+    payloadlen = see_rtp(pkt, size, payload);
+    PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
+	//ipc_mq(payload, payloadlen);
     
     
 

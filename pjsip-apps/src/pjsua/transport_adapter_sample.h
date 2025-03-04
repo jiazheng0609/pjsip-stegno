@@ -60,7 +60,8 @@ PJ_DECL(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
                                                 const char *name,
                                                 pjmedia_transport *base_tp,
                                                 pj_bool_t del_base,
-                                                pjmedia_transport **p_tp);
+                                                pjmedia_transport **p_tp,
+                                                pj_bool_t mod_payload);
 
 PJ_END_DECL
 

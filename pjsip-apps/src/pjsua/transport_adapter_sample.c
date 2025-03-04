@@ -25,7 +25,6 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-#include <semaphore.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/msg.h>
@@ -37,7 +36,6 @@
                             exit(0); \
                     } while (0)
 #define SHM_NAME 123456
-#define SEM_NAME "/pjsem"
 #define MSG_NAME 81
 #define RMSG_NAME 82
 #define BUFSIZE 1024
@@ -133,10 +131,9 @@ static struct app
 	int shmid;
     key_t key;
     char *shared_memory;
-	sem_t *sem;
-	key_t keysem;
 	int msgid;
 	int rmsgid;
+	pj_bool_t mod_payload;
 } app;
 
 /* message queue */
@@ -156,7 +153,8 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
                                                const char *name,
                                                pjmedia_transport *transport,
                                                pj_bool_t del_base,
-                                               pjmedia_transport **p_tp)
+                                               pjmedia_transport **p_tp,
+											   pj_bool_t mod_payload)
 {
     pj_pool_t *pool;
     struct tp_stegno *adapter;
@@ -180,6 +178,8 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     adapter->del_base = del_base;
 
     app.counter = 0;
+	// whether we need to modify payload
+	app.mod_payload = mod_payload;
 
 
     /* Setup group lock handler for destroy and callback synchronization */
@@ -207,14 +207,12 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     }
     PJ_LOG(3,(THIS_FILE, "shared memory attatched"));
 
-	// Semaphore
-	if ((app.sem = sem_open(SEM_NAME, O_CREAT | O_EXCL, 0666, 0)) < 0)
-	{
-		PJ_LOG(3, (THIS_FILE, "semaphore init failed"));
-	}
 	
 	app.msgid = msgget(MSG_NAME, IPC_CREAT | 0660);
-	app.rmsgid = msgget(RMSG_NAME, IPC_CREAT | 0660);
+	if (app.mod_payload) 
+	{
+		app.rmsgid = msgget(RMSG_NAME, IPC_CREAT | 0660);
+	}
 
 
 
@@ -341,12 +339,11 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
 		/* detach and remove shared memory */
 		shmdt(app.shmid);
 	    shmctl(app.shmid, IPC_RMID, NULL);
-		// semaphore
-        sem_close(app.sem);
-        sem_unlink(SEM_NAME);
 		// message queue
 		msgctl(app.msgid, IPC_RMID, 0);
-		msgctl(app.rmsgid, IPC_RMID, 0);
+		if (app.mod_payload) {
+			msgctl(app.rmsgid, IPC_RMID, 0);
+		}
     }
 }
 
@@ -380,17 +377,29 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
     }*/
     //payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter++ % 256);
 	//memcpy(app.shared_memory, pkt, size);
-	//sem_post(app.sem);
-	//int *semval;
-	//sem_getvalue(app.sem, semval);
-	//printf("count %d semaphore %d", app.counter, *semval);
-	//
+	
+
     MSGBUF msgbuf;
-    MSGBUF rmsgbuf;
+	MSGBUF rmsgbuf;
+
+	if (app.mod_payload) {
+		/* if rmsq is full, clear it */
+		struct msqid_ds msqinfo;
+		msgctl(app.rmsgid, IPC_STAT, &msqinfo);
+		//PJ_LOG(3, (THIS_FILE, "rmsq %d", msqinfo.msg_qnum));
+		for (int i = msqinfo.msg_qnum; i > 100; i--) {
+			msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+		}
+	}
+
+
 	msgbuf.mtype = 1;
 	memcpy(msgbuf.mtext, payload, payloadlen);
 	msgsnd(app.msgid, &msgbuf, payloadlen, 0);
-	msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+	if (app.mod_payload) {
+		msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+		memcpy(payload, rmsgbuf.mtext, payloadlen);
+	}
 
 	return payloadlen;
 }
@@ -424,7 +433,7 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
 	int payloadlen;
     
     payloadlen = see_rtp(pkt, size, payload);
-    PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
+    //PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
 	//ipc_mq(payload, payloadlen);
     
     

@@ -1851,6 +1851,13 @@ static void ui_handle_ip_change()
     }
 }
 
+static void ui_toggle_modify_payload()
+{
+	app_config.mod_payload = !app_config.mod_payload;
+	printf("modify payload flag: %d\n", app_config.mod_payload);
+
+}
+
 /*
  * Main "user interface" loop.
  */
@@ -2116,6 +2123,9 @@ void legacy_main(void)
         case 'I': /* Handle IP change. */
             ui_handle_ip_change();
             break;
+		case 'P':
+			ui_toggle_modify_payload();
+			break;
 
         default:
             if (menuin[0] != '\n' && menuin[0] != '\r') {

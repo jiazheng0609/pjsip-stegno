@@ -158,6 +158,8 @@ typedef struct pjsua_app_config
     /* CLI setting */
     pj_bool_t               use_cli;
     cli_cfg_t               cli_cfg;
+
+    pj_bool_t               mod_payload;
 } pjsua_app_config;
 
 /** Extern variable declaration **/

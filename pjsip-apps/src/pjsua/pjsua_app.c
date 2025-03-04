@@ -1071,11 +1071,12 @@ static pjmedia_transport* on_create_media_transport(pjsua_call_id call_id,
     pjmedia_transport *adapter;
     pj_status_t status;
 
+
     /* Create the adapter */
     status = pjmedia_tp_stegno_create(pjsua_get_pjmedia_endpt(),
                                        NULL, base_tp,
                                        (flags & PJSUA_MED_TP_CLOSE_MEMBER),
-                                       &adapter);
+                                       &adapter, app_config.mod_payload); 
     if (status != PJ_SUCCESS) {
         PJ_PERROR(1,(THIS_FILE, status, "Error creating adapter"));
         return NULL;

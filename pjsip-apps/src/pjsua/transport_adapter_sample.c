@@ -404,7 +404,7 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 		struct msqid_ds msqinfo;
 		msgctl(app.rmsgid, IPC_STAT, &msqinfo);
 		//PJ_LOG(3, (THIS_FILE, "rmsq %d", msqinfo.msg_qnum));
-		for (int i = msqinfo.msg_qnum; i > 100; i--) {
+		for (int i = msqinfo.msg_qnum; i > 1; i--) {
 			msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
 		}
 	}

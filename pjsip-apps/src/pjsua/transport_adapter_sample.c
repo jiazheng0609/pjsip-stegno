@@ -265,7 +265,9 @@ static void transport_rtp_cb2(pjmedia_tp_cb_param *param)
     pj_assert(adapter->stream_rtp_cb != NULL ||
               adapter->stream_rtp_cb2 != NULL);
 
-    // see_rtp(param->pkt, param->size, payload);
+    if (!app.mod_payload) {
+    	see_rtp(param->pkt, param->size, payload);
+    }
 
     /* Call stream's callback */
     if (adapter->stream_rtp_cb2) {
@@ -396,18 +398,9 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 	//memcpy(app.shared_memory, pkt, size);
 	
 
-    MSGBUF msgbuf;
+	MSGBUF msgbuf;
 	MSGBUF rmsgbuf;
 
-	if (app.mod_payload) {
-		/* if rmsq is full, clear it */
-		struct msqid_ds msqinfo;
-		msgctl(app.rmsgid, IPC_STAT, &msqinfo);
-		//PJ_LOG(3, (THIS_FILE, "rmsq %d", msqinfo.msg_qnum));
-		for (int i = msqinfo.msg_qnum; i > 1; i--) {
-			msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
-		}
-	}
 
 
 	if (app.mq_exist) {
@@ -415,7 +408,15 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 		memcpy(msgbuf.mtext, payload, payloadlen);
 		msgsnd(app.msgid, &msgbuf, payloadlen, 0);
 	}
-	if (app.mod_payload || app.rmq_exist) {
+	if (app.rmq_exist) {
+		/* if rmsq has more than one object, clear it */
+		struct msqid_ds msqinfo;
+		msgctl(app.rmsgid, IPC_STAT, &msqinfo);
+		//PJ_LOG(3, (THIS_FILE, "rmsq %d", msqinfo.msg_qnum));
+		for (int i = msqinfo.msg_qnum; i > 1; i--) {
+			msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+		}
+
 		msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
 		memcpy(payload, rmsgbuf.mtext, payloadlen);
 	}
@@ -438,11 +439,11 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     
     
     void *payload;
-	int payloadlen;
-    
-    payloadlen = see_rtp(pkt, size, payload);
-    //PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
-    
+    int payloadlen;
+    if (app.mod_payload) {
+	payloadlen = see_rtp(pkt, size, payload);
+	//PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
+    }
     
 
     

@@ -134,6 +134,8 @@ static struct app
 	int msgid;
 	int rmsgid;
 	pj_bool_t mod_payload;
+	pj_bool_t mq_exist;
+	pj_bool_t rmq_exist;
 } app;
 
 /* message queue */
@@ -208,10 +210,24 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     PJ_LOG(3,(THIS_FILE, "shared memory attatched"));
 
 	
-	app.msgid = msgget(MSG_NAME, IPC_CREAT | 0660);
+	/* message queue */
+	if ((app.msgid = msgget((key_t)MSG_NAME, 0)) < 0) {
+		app.mq_exist = 0;
+		PJ_LOG(3, (THIS_FILE, "mq not exist" ));
+	} else {
+		app.mq_exist = 1;
+		PJ_LOG(3, (THIS_FILE, "mq exist"));
+		
+	}
 	if (app.mod_payload) 
 	{
-		app.rmsgid = msgget(RMSG_NAME, IPC_CREAT | 0660);
+		if ((app.rmsgid = msgget((key_t)RMSG_NAME, 0)) < 0) {
+			app.rmq_exist = 0;
+			PJ_LOG(3, (THIS_FILE, "rmq not exist"));
+		} else {
+			app.rmq_exist = 1;
+			PJ_LOG(3, (THIS_FILE, "rmq exist"));
+		}
 	}
 
 
@@ -339,11 +355,12 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
 		/* detach and remove shared memory */
 		shmdt(app.shmid);
 	    shmctl(app.shmid, IPC_RMID, NULL);
-		// message queue
-		msgctl(app.msgid, IPC_RMID, 0);
+
+		// let python removemessage queue
+		/*msgctl(app.msgid, IPC_RMID, 0);
 		if (app.mod_payload) {
 			msgctl(app.rmsgid, IPC_RMID, 0);
-		}
+		} */
     }
 }
 
@@ -393,26 +410,17 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 	}
 
 
-	msgbuf.mtype = 1;
-	memcpy(msgbuf.mtext, payload, payloadlen);
-	msgsnd(app.msgid, &msgbuf, payloadlen, 0);
-	if (app.mod_payload) {
+	if (app.mq_exist) {
+		msgbuf.mtype = 1;
+		memcpy(msgbuf.mtext, payload, payloadlen);
+		msgsnd(app.msgid, &msgbuf, payloadlen, 0);
+	}
+	if (app.mod_payload || app.rmq_exist) {
 		msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
 		memcpy(payload, rmsgbuf.mtext, payloadlen);
 	}
 
 	return payloadlen;
-}
-
-void ipc_mq(const void *payload, int payloadlen)
-{
-    MSGBUF msgbuf;
-    MSGBUF rmsgbuf;
-	msgbuf.mtype = 1;
-	memcpy(msgbuf.mtext, payload, payloadlen);
-	msgsnd(app.msgid, &msgbuf, payloadlen, 0);
-	msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
-
 }
 
 /*
@@ -434,7 +442,6 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     
     payloadlen = see_rtp(pkt, size, payload);
     //PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
-	//ipc_mq(payload, payloadlen);
     
     
 

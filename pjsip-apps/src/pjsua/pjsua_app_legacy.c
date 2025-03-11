@@ -1867,6 +1867,10 @@ void legacy_main(void)
     char buf[128];
 
     keystroke_help();
+    
+    pj_str_t codec_id;
+    codec_id = pj_str("PCMU/8000/1");
+    pjsua_codec_set_priority(&codec_id,PJMEDIA_CODEC_PRIO_NORMAL+10);
 
     for (;;) {
 

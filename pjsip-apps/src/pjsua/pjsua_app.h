@@ -24,7 +24,7 @@
  */
 
 #include "pjsua_app_common.h"
-#include "transport_adapter_sample.h"
+#include "transport_stegno.h"
 PJ_BEGIN_DECL
 
 /**

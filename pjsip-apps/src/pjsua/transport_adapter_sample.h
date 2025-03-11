@@ -21,8 +21,8 @@
 
 
 /**
- * @file transport_adapter_sample.h
- * @brief Sample Media Transport Adapter
+ * @file transport_stegno.h
+ * @brief Steganography Transport Adapter
  */
 
 #include <pjmedia/transport.h>

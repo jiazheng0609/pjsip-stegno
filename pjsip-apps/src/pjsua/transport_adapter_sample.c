@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
  */
-#include "transport_adapter_sample.h"
+#include "transport_stegno.h"
 #include <pjmedia/endpoint.h>
 #include <pj/assert.h>
 #include <pj/pool.h>
@@ -29,13 +29,12 @@
 #include <sys/stat.h>
 #include <sys/msg.h>
 
-#define THIS_FILE       "transport_adapter_sample.c"
+#define THIS_FILE       "transport_stegno.c"
 #define T(op)       do { \
                         pj_status_t status = op; \
                         if (status != PJ_SUCCESS) \
                             exit(0); \
                     } while (0)
-#define SHM_NAME 123456
 #define MSG_NAME 81
 #define RMSG_NAME 82
 #define BUFSIZE 1024
@@ -193,22 +192,6 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
         pj_grp_lock_add_handler(grp_lock, pool, adapter, &adapter_on_destroy);
     }
 
-	/* Setup shared memory */
-	app.key = SHM_NAME;
-    if ((app.shmid = shmget(app.key, 160, IPC_CREAT | 0666)) < 0)
-    {
-        printf("Error getting shared memory id");
-        exit(1);
-    }
-
-    // Attached shared memory
-    if ((app.shared_memory = shmat(app.shmid, NULL, 0)) == (char *) -1)
-    {
-        printf("Error attaching shared memory id");
-        exit(1);
-    }
-    PJ_LOG(3,(THIS_FILE, "shared memory attatched"));
-
 	
 	/* message queue */
 	if ((app.msgid = msgget((key_t)MSG_NAME, 0)) < 0) {
@@ -354,15 +337,12 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
         adapter->stream_rtp_cb2 = NULL;
         adapter->stream_rtcp_cb = NULL;
         adapter->stream_ref = NULL;
-		/* detach and remove shared memory */
-		shmdt(app.shmid);
-	    shmctl(app.shmid, IPC_RMID, NULL);
 
-		// let python removemessage queue
-		/*msgctl(app.msgid, IPC_RMID, 0);
-		if (app.mod_payload) {
-			msgctl(app.rmsgid, IPC_RMID, 0);
-		} */
+	// remove message queue
+	msgctl(app.msgid, IPC_RMID, 0);
+	if (app.mod_payload) {
+		msgctl(app.rmsgid, IPC_RMID, 0);
+	} 
     }
 }
 

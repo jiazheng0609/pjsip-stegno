@@ -135,6 +135,7 @@ static struct app
 	pj_bool_t mod_payload;
 	pj_bool_t mq_exist;
 	pj_bool_t rmq_exist;
+	pj_bool_t first_res;
 } app;
 
 /* message queue */
@@ -179,6 +180,8 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
     adapter->del_base = del_base;
 
     app.counter = 0;
+    // don't send to mq until hear first response from RX
+    app.first_res = 0;
 	// whether we need to modify payload
 	app.mod_payload = mod_payload;
 
@@ -250,6 +253,8 @@ static void transport_rtp_cb2(pjmedia_tp_cb_param *param)
 
     if (!app.mod_payload) {
     	see_rtp(param->pkt, param->size, payload);
+    } else {
+	app.first_res = 1;
     }
 
     /* Call stream's callback */

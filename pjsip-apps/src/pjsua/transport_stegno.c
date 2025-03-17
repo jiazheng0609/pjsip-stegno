@@ -372,13 +372,13 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
     }
 
     
-    /*if (rtp_header->v == 2) {
-       PJ_LOG(3, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
+    if (rtp_header->v == 2) {
+       PJ_LOG(5, (THIS_FILE, "rtp version %u, payload type %u, seq %lu, ts %lu, ssrc=%lx, payload size %d, firstb %x, lastb %x",
             rtp_header->v, rtp_header->pt, (unsigned long)pj_ntohl(rtp_header->seq),
             (unsigned long) pj_ntohl(rtp_header->ts),
             (unsigned long) pj_ntohl(rtp_header->cc),
             payloadlen, payload[0], payload[payloadlen-1]));
-    }*/
+    }
     //payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter++ % 256);
 	//memcpy(app.shared_memory, pkt, size);
 	

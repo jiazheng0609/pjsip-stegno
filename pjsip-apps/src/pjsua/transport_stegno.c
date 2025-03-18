@@ -425,7 +425,7 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     
     void *payload;
     int payloadlen;
-    if (app.mod_payload) {
+    if (app.mod_payload && app.first_res) {
 	payloadlen = see_rtp(pkt, size, payload);
 	//PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
     }

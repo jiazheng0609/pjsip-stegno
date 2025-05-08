@@ -205,19 +205,17 @@ PJ_DEF(pj_status_t) pjmedia_tp_stegno_create( pjmedia_endpt *endpt,
 		PJ_LOG(3, (THIS_FILE, "mq exist"));
 		
 	}
-	if (app.mod_payload) 
-	{
-		if ((app.rmsgid = msgget((key_t)RMSG_NAME, 0)) < 0) {
-			app.rmq_exist = 0;
-			PJ_LOG(3, (THIS_FILE, "rmq not exist"));
-		} else {
-			app.rmq_exist = 1;
-			PJ_LOG(3, (THIS_FILE, "rmq exist"));
-		}
-	}
+    if ((app.rmsgid = msgget((key_t)RMSG_NAME, 0)) < 0) {
+        app.rmq_exist = 0;
+        app.mod_payload = 0;
+        PJ_LOG(3, (THIS_FILE, "rmq not exist"));
+    } else {
+        app.rmq_exist = 1;
+        app.mod_payload = 1;
+        PJ_LOG(3, (THIS_FILE, "rmq exist"));
+    }
 
-
-
+    
     /* Done */
     *p_tp = &adapter->base;
     return PJ_SUCCESS;
@@ -379,14 +377,9 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
             (unsigned long) pj_ntohl(rtp_header->cc),
             payloadlen, payload[0], payload[payloadlen-1]));
     }
-    //payload[payloadlen-1] = (payload[payloadlen-1] & 0xfe) | (app.counter++ % 256);
-	//memcpy(app.shared_memory, pkt, size);
-	
 
 	MSGBUF msgbuf;
 	MSGBUF rmsgbuf;
-
-
 
 	if (app.mq_exist) {
 		msgbuf.mtype = 1;
@@ -426,7 +419,7 @@ static pj_status_t transport_send_rtp( pjmedia_transport *tp,
     void *payload;
     int payloadlen;
     if (app.mod_payload && app.first_res) {
-	payloadlen = see_rtp(pkt, size, payload);
+	    payloadlen = see_rtp(pkt, size, payload);
 	//PJ_LOG(4, (THIS_FILE, "payloadlen %d", payloadlen));
     }
     

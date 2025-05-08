@@ -160,6 +160,7 @@ typedef struct pjsua_app_config
     cli_cfg_t               cli_cfg;
 
     pj_bool_t               mod_payload;
+    pj_str_t                python_file;
 } pjsua_app_config;
 
 /** Extern variable declaration **/

@@ -402,7 +402,7 @@ static pj_status_t parse_args(int argc, char *argv[],
            OPT_TIMER, OPT_TIMER_SE, OPT_TIMER_MIN_SE,
            OPT_VIDEO, OPT_EXTRA_AUDIO,
            OPT_VCAPTURE_DEV, OPT_VRENDER_DEV, OPT_PLAY_AVI, OPT_AUTO_PLAY_AVI,
-           OPT_USE_CLI, OPT_CLI_TELNET_PORT, OPT_DISABLE_CLI_CONSOLE
+           OPT_USE_CLI, OPT_CLI_TELNET_PORT, OPT_DISABLE_CLI_CONSOLE, OPT_EXEC_PY_FILE
     };
     struct pj_getopt_option long_options[] = {
         { "config-file",1, 0, OPT_CONFIG_FILE},
@@ -548,6 +548,7 @@ static pj_status_t parse_args(int argc, char *argv[],
         { "use-cli",    0, 0, OPT_USE_CLI},
         { "cli-telnet-port", 1, 0, OPT_CLI_TELNET_PORT},
         { "no-cli-console", 0, 0, OPT_DISABLE_CLI_CONSOLE},
+        { "open-python-file", 1, 0, OPT_EXEC_PY_FILE},
         { NULL, 0, 0, 0}
     };
     pj_status_t status;
@@ -1513,6 +1514,10 @@ static pj_status_t parse_args(int argc, char *argv[],
 
         case OPT_DISABLE_CLI_CONSOLE:
             cfg->cli_cfg.cli_fe &= (~CLI_FE_CONSOLE);
+            break;
+
+        case OPT_EXEC_PY_FILE:
+            cfg->python_file = pj_str(pj_optarg);
             break;
 
         default:

@@ -2029,6 +2029,20 @@ static pj_status_t app_init(void)
     pjsip_tls_setting_wipe_keys(&app_config.udp_cfg.tls_setting);
 #endif
 
+    if (app_config.python_file.slen) {
+        PJ_LOG(1, (THIS_FILE, "Specified to open python file %s", app_config.python_file.ptr));
+
+        if (fork() == 0) {
+            printf("this is child process");
+            char *args[] = {"python3", app_config.python_file.ptr, NULL};
+            printf("child process\n");
+            if (execvp(args[0], args) == -1)
+            {
+                perror("Error executing execvp");
+            }
+        }
+    }
+
     pj_pool_release(tmp_pool);
     return PJ_SUCCESS;
 

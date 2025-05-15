@@ -1853,8 +1853,13 @@ static void ui_handle_ip_change()
 
 static void ui_toggle_modify_payload()
 {
-	app_config.mod_payload = !app_config.mod_payload;
-	printf("modify payload flag: %d\n", app_config.mod_payload);
+    printf("reopen python file: %s", app_config.python_file.ptr);
+    if (fork() == 0) {
+            char *args[] = {"python3", app_config.python_file.ptr, NULL};
+            if (execvp(args[0], args) == -1) {
+                perror("Error executing execvp");
+            }
+    }
 
 }
 

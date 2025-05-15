@@ -1853,12 +1853,18 @@ static void ui_handle_ip_change()
 
 static void ui_toggle_modify_payload()
 {
-    printf("reopen python file: %s", app_config.python_file.ptr);
-    if (fork() == 0) {
-            char *args[] = {"python3", app_config.python_file.ptr, NULL};
-            if (execvp(args[0], args) == -1) {
-                perror("Error executing execvp");
-            }
+    if (app_config.python_file.slen) {
+        printf("reopen python file: %s\n", app_config.python_file.ptr);
+        if (fork() == 0) {
+                char *args[] = {"python3", app_config.python_file.ptr, NULL};
+                if (execvp(args[0], args) == -1) {
+                    perror("Error executing execvp");
+                }
+        }
+    }
+    else { 
+        printf("no python file specified!\n")
+    
     }
 
 }

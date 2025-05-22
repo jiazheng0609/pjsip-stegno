@@ -1855,7 +1855,7 @@ static void ui_toggle_modify_payload()
 {
     if (app_config.python_pid) {
         PJ_LOG(3, (THIS_FILE, "kill python pid: %d", app_config.python_pid));
-        kill(app_config.python_pid, SIGKILL);
+        kill(app_config.python_pid, SIGTERM);
     }
     if (app_config.python_file.slen) {
         PJ_LOG(3, (THIS_FILE, "reopening python file: %s", app_config.python_file.ptr));

@@ -19,6 +19,7 @@
 #define __PJSUA_APP_COMMON_H__
 
 #include <pjsua-lib/pjsua.h>
+#include <signal.h>
 
 PJ_BEGIN_DECL
 
@@ -161,6 +162,7 @@ typedef struct pjsua_app_config
 
     pj_bool_t               mod_payload;
     pj_str_t                python_file;
+    pid_t                   python_pid;
 } pjsua_app_config;
 
 /** Extern variable declaration **/

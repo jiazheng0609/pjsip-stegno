@@ -2031,11 +2031,9 @@ static pj_status_t app_init(void)
 
     if (app_config.python_file.slen) {
         PJ_LOG(1, (THIS_FILE, "Specified to open python file %s", app_config.python_file.ptr));
-
-        if (fork() == 0) {
-            printf("this is child process");
+        app_config.python_pid = fork();
+        if (app_config.python_pid == 0) {
             char *args[] = {"python3", app_config.python_file.ptr, NULL};
-            printf("child process\n");
             if (execvp(args[0], args) == -1)
             {
                 perror("Error executing execvp");
@@ -2209,6 +2207,10 @@ static pj_status_t app_destroy(void)
             pjsua_conf_remove_port(app_config.tone_slots[i]);
             app_config.tone_slots[i] = PJSUA_INVALID_ID;
         }
+    }
+
+    if (app_config.python_file.slen) {
+	kill(app_config.python_pid, SIGTERM);
     }
 
 #if defined(PJSIP_HAS_TLS_TRANSPORT) && PJSIP_HAS_TLS_TRANSPORT!=0

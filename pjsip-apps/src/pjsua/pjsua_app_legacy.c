@@ -1854,11 +1854,11 @@ static void ui_handle_ip_change()
 static void ui_toggle_modify_payload()
 {
     if (app_config.python_pid) {
-        PJ_LOG(3, (THIS_FILE, "kill python pid: %d\n", app_config.python_pid));
+        PJ_LOG(3, (THIS_FILE, "kill python pid: %d", app_config.python_pid));
         kill(app_config.python_pid, SIGKILL);
     }
     if (app_config.python_file.slen) {
-        PJ_LOG(3, (THIS_FILE, "reopening python file: %s\n", app_config.python_file.ptr));
+        PJ_LOG(3, (THIS_FILE, "reopening python file: %s", app_config.python_file.ptr));
 	app_config.python_pid = fork();
         if (app_config.python_pid == 0) {
                 char *args[] = {"python3", app_config.python_file.ptr, NULL};

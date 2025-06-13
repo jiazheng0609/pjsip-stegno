@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/msg.h>
+#include <time.h>
 
 #define THIS_FILE       "transport_stegno.c"
 #define T(op)       do { \
@@ -38,6 +39,15 @@
 #define MSG_NAME 81
 #define RMSG_NAME 82
 #define BUFSIZE 1024
+#define MAX_LOG 10000
+
+typedef struct {
+    char op[8];
+    struct timespec ts;
+} time_log;
+static time_log t_logs[MAX_LOG];
+static int t_log_count = 0;
+
 
 /* Transport functions prototypes */
 static pj_status_t transport_get_info (pjmedia_transport *tp,
@@ -323,6 +333,18 @@ static pj_status_t transport_attach2(pjmedia_transport *tp,
     return PJ_SUCCESS;
 }
 
+static void dump_t_logs() {
+    FILE *fp = fopen("pjsip_times.log", "w");
+    if (!fp) return;
+    for (int i = 0; i < t_log_count; ++i) {
+        fprintf(fp, "%s %ld.%09ld\n", t_logs[i].op,
+                t_logs[i].ts.tv_sec, t_logs[i].ts.tv_nsec);
+    }
+    fclose(fp);
+}
+
+
+
 /* 
  * detach() is called when the media is terminated, and the stream is 
  * to be disconnected from us.
@@ -341,11 +363,13 @@ static void transport_detach(pjmedia_transport *tp, void *strm)
         adapter->stream_rtcp_cb = NULL;
         adapter->stream_ref = NULL;
 
-	// remove message queue
-	msgctl(app.msgid, IPC_RMID, 0);
-	if (app.mod_payload) {
-		msgctl(app.rmsgid, IPC_RMID, 0);
-	} 
+        // remove message queue
+        msgctl(app.msgid, IPC_RMID, 0);
+        if (app.mod_payload) {
+            msgctl(app.rmsgid, IPC_RMID, 0);
+        }
+        
+        dump_t_logs();
     }
 }
 
@@ -385,6 +409,12 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 		msgbuf.mtype = 1;
 		memcpy(msgbuf.mtext, payload, payloadlen);
 		msgsnd(app.msgid, &msgbuf, payloadlen, 0);
+
+        if (t_log_count < MAX_LOG) {
+            strcpy(t_logs[t_log_count].op, "txc");
+            clock_gettime(CLOCK_MONOTONIC, &t_logs[t_log_count].ts);
+            t_log_count++;
+        }
 	}
 	if (app.rmq_exist) {
 		/* if rmsq has more than one object, clear it */
@@ -395,7 +425,14 @@ int see_rtp(const void *pkt, pj_size_t size, const void **payload)
 			msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
 		}
 
-		msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, IPC_NOWAIT);
+		msgrcv(app.rmsgid, &rmsgbuf, payloadlen, 1, 0);
+
+        if (t_log_count < MAX_LOG) {
+            strcpy(t_logs[t_log_count].op, "rxc");
+            clock_gettime(CLOCK_MONOTONIC, &t_logs[t_log_count].ts);
+            t_log_count++;
+        }
+
 		memcpy(payload, rmsgbuf.mtext, payloadlen);
 	}
 
